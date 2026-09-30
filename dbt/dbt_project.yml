@@ -1,0 +1,8 @@
+name: upi_lakehouse
+version: '1.0.0'
+config-version: 2
+profile: upi
+model-paths: [models]
+models:
+  upi_lakehouse:
+    +materialized: view

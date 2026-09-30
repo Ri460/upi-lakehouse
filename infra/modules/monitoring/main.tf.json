@@ -1,0 +1,166 @@
+{
+  "variable": {
+    "name": {
+      "type": "string"
+    },
+    "email": {
+      "type": "string"
+    },
+    "dlq_name": {
+      "type": "string"
+    },
+    "validator_name": {
+      "type": "string"
+    },
+    "batch_name": {
+      "type": "string"
+    },
+    "api_name": {
+      "type": "string"
+    }
+  },
+  "resource": {
+    "aws_sns_topic": {
+      "alerts": {
+        "name": "${var.name}-alerts"
+      }
+    },
+    "aws_sns_topic_subscription": {
+      "email": {
+        "topic_arn": "${aws_sns_topic.alerts.arn}",
+        "protocol": "email",
+        "endpoint": "${var.email}"
+      }
+    },
+    "aws_budgets_budget": {
+      "demo": {
+        "name": "${var.name}-monthly",
+        "budget_type": "COST",
+        "limit_amount": "10",
+        "limit_unit": "USD",
+        "time_unit": "MONTHLY",
+        "notification": [
+          {
+            "comparison_operator": "GREATER_THAN",
+            "threshold": 50,
+            "threshold_type": "PERCENTAGE",
+            "notification_type": "ACTUAL",
+            "subscriber_email_addresses": [
+              "${var.email}"
+            ]
+          },
+          {
+            "comparison_operator": "GREATER_THAN",
+            "threshold": 80,
+            "threshold_type": "PERCENTAGE",
+            "notification_type": "ACTUAL",
+            "subscriber_email_addresses": [
+              "${var.email}"
+            ]
+          }
+        ]
+      }
+    },
+    "aws_cloudwatch_metric_alarm": {
+      "dlq": {
+        "alarm_name": "${var.name}-dlq",
+        "namespace": "AWS/SQS",
+        "metric_name": "ApproximateNumberOfMessagesVisible",
+        "dimensions": {
+          "QueueName": "${var.dlq_name}"
+        },
+        "statistic": "Maximum",
+        "period": 60,
+        "evaluation_periods": 1,
+        "threshold": 0,
+        "comparison_operator": "GreaterThanThreshold",
+        "treat_missing_data": "notBreaching",
+        "alarm_actions": [
+          "${aws_sns_topic.alerts.arn}"
+        ]
+      },
+      "validator-errors": {
+        "alarm_name": "${var.name}-validator-errors",
+        "namespace": "AWS/Lambda",
+        "metric_name": "Errors",
+        "dimensions": {
+          "FunctionName": "${var.validator_name}"
+        },
+        "statistic": "Sum",
+        "period": 60,
+        "evaluation_periods": 1,
+        "threshold": 0,
+        "comparison_operator": "GreaterThanThreshold",
+        "treat_missing_data": "notBreaching",
+        "alarm_actions": [
+          "${aws_sns_topic.alerts.arn}"
+        ]
+      },
+      "batch-errors": {
+        "alarm_name": "${var.name}-batch-errors",
+        "namespace": "AWS/Lambda",
+        "metric_name": "Errors",
+        "dimensions": {
+          "FunctionName": "${var.batch_name}"
+        },
+        "statistic": "Sum",
+        "period": 60,
+        "evaluation_periods": 1,
+        "threshold": 0,
+        "comparison_operator": "GreaterThanThreshold",
+        "treat_missing_data": "notBreaching",
+        "alarm_actions": [
+          "${aws_sns_topic.alerts.arn}"
+        ]
+      },
+      "api-errors": {
+        "alarm_name": "${var.name}-api-errors",
+        "namespace": "AWS/Lambda",
+        "metric_name": "Errors",
+        "dimensions": {
+          "FunctionName": "${var.api_name}"
+        },
+        "statistic": "Sum",
+        "period": 60,
+        "evaluation_periods": 1,
+        "threshold": 0,
+        "comparison_operator": "GreaterThanThreshold",
+        "treat_missing_data": "notBreaching",
+        "alarm_actions": [
+          "${aws_sns_topic.alerts.arn}"
+        ]
+      },
+      "iterator-age": {
+        "alarm_name": "${var.name}-iterator-age",
+        "namespace": "AWS/Lambda",
+        "metric_name": "IteratorAge",
+        "dimensions": {
+          "FunctionName": "${var.validator_name}"
+        },
+        "statistic": "Maximum",
+        "period": 60,
+        "evaluation_periods": 1,
+        "threshold": 60000,
+        "comparison_operator": "GreaterThanThreshold",
+        "treat_missing_data": "notBreaching",
+        "alarm_actions": [
+          "${aws_sns_topic.alerts.arn}"
+        ]
+      }
+    }
+  },
+  "output": {
+    "topic_arn": {
+      "value": "${aws_sns_topic.alerts.arn}"
+    }
+  },
+  "terraform": {
+    "required_version": ">= 1.10",
+    "required_providers": {
+      "aws": {
+        "source": "hashicorp/aws",
+        "version": "~> 5.90"
+      }
+    }
+  }
+}

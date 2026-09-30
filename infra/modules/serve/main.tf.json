@@ -1,0 +1,394 @@
+{
+  "variable": {
+    "name": {
+      "type": "string"
+    },
+    "image_uri": {
+      "type": "string"
+    },
+    "bucket": {
+      "type": "string"
+    },
+    "bucket_arn": {
+      "type": "string"
+    },
+    "database": {
+      "type": "string"
+    },
+    "workgroup": {
+      "type": "string"
+    },
+    "stream_arn": {
+      "type": "string"
+    },
+    "queue_arn": {
+      "type": "string"
+    },
+    "dlq_arn": {
+      "type": "string"
+    },
+    "dlq_url": {
+      "type": "string"
+    },
+    "failure_bucket_arn": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string"
+    }
+  },
+  "locals": {
+    "validator_base": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        "Resource": [
+          "arn:aws:logs:*:*:log-group:/aws/lambda/${var.name}-*:*"
+        ]
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords"
+        ],
+        "Resource": [
+          "*"
+        ]
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "s3:PutObject"
+        ],
+        "Resource": [
+          "${var.bucket_arn}/bronze/*",
+          "${var.bucket_arn}/quarantine/*",
+          "${var.bucket_arn}/aws/lambda/*"
+        ]
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "s3:ListBucket"
+        ],
+        "Resource": [
+          "${var.bucket_arn}"
+        ]
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem"
+        ],
+        "Resource": [
+          "${aws_dynamodb_table.txn.arn}"
+        ]
+      },
+      {
+        "Effect": "Allow",
+        "Action": [
+          "sqs:SendMessage"
+        ],
+        "Resource": [
+          "${var.dlq_arn}"
+        ]
+      }
+    ]
+  },
+  "resource": {
+    "aws_dynamodb_table": {
+      "txn": {
+        "name": "${var.name}-txn",
+        "billing_mode": "PAY_PER_REQUEST",
+        "hash_key": "txn_id",
+        "attribute": [
+          {
+            "name": "txn_id",
+            "type": "S"
+          }
+        ],
+        "server_side_encryption": {
+          "enabled": true
+        }
+      },
+      "serve": {
+        "name": "${var.name}-serve",
+        "billing_mode": "PAY_PER_REQUEST",
+        "hash_key": "pk",
+        "attribute": [
+          {
+            "name": "pk",
+            "type": "S"
+          }
+        ],
+        "server_side_encryption": {
+          "enabled": true
+        }
+      }
+    },
+    "aws_iam_role": {
+      "validator": {
+        "name": "${var.name}-validator",
+        "assume_role_policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Principal\": {\"Service\": \"lambda.amazonaws.com\"}, \"Action\": \"sts:AssumeRole\"}]}"
+      },
+      "batch": {
+        "name": "${var.name}-batch",
+        "assume_role_policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Principal\": {\"Service\": \"lambda.amazonaws.com\"}, \"Action\": \"sts:AssumeRole\"}]}"
+      },
+      "api": {
+        "name": "${var.name}-api",
+        "assume_role_policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Principal\": {\"Service\": \"lambda.amazonaws.com\"}, \"Action\": \"sts:AssumeRole\"}]}"
+      }
+    },
+    "aws_iam_role_policy": {
+      "validator": {
+        "role": "${aws_iam_role.validator.id}",
+        "policy": "${jsonencode({Version=\"2012-10-17\",Statement=concat(local.validator_base,var.mode == \"kinesis\" ? [{Effect=\"Allow\",Action=[\"kinesis:DescribeStream\",\"kinesis:DescribeStreamSummary\",\"kinesis:GetRecords\",\"kinesis:GetShardIterator\",\"kinesis:ListShards\"],Resource=[var.stream_arn]},{Effect=\"Allow\",Action=[\"kms:Decrypt\"],Resource=[\"*\"]}] : [{Effect=\"Allow\",Action=[\"sqs:ReceiveMessage\",\"sqs:DeleteMessage\",\"sqs:GetQueueAttributes\"],Resource=[var.queue_arn]}))})}"
+      },
+      "batch": {
+        "role": "${aws_iam_role.batch.id}",
+        "policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Action\": [\"logs:CreateLogStream\", \"logs:PutLogEvents\"], \"Resource\": [\"arn:aws:logs:*:*:log-group:/aws/lambda/${var.name}-*:*\"]}, {\"Effect\": \"Allow\", \"Action\": [\"xray:PutTraceSegments\", \"xray:PutTelemetryRecords\"], \"Resource\": [\"*\"]}, {\"Effect\": \"Allow\", \"Action\": [\"s3:GetObject\", \"s3:PutObject\", \"s3:DeleteObject\"], \"Resource\": [\"${var.bucket_arn}/*\"]}, {\"Effect\": \"Allow\", \"Action\": [\"s3:ListBucket\", \"s3:GetBucketLocation\"], \"Resource\": [\"${var.bucket_arn}\"]}, {\"Effect\": \"Allow\", \"Action\": [\"dynamodb:PutItem\", \"dynamodb:GetItem\", \"dynamodb:DeleteItem\", \"dynamodb:BatchWriteItem\"], \"Resource\": [\"${aws_dynamodb_table.serve.arn}\"]}, {\"Effect\": \"Allow\", \"Action\": [\"glue:GetDatabase\", \"glue:GetDatabases\", \"glue:GetTable\", \"glue:GetTables\", \"glue:CreateTable\", \"glue:UpdateTable\", \"glue:DeleteTable\", \"glue:GetPartitions\", \"glue:BatchCreatePartition\", \"glue:BatchDeletePartition\"], \"Resource\": [\"arn:aws:glue:*:*:catalog\", \"arn:aws:glue:*:*:database/${var.database}\", \"arn:aws:glue:*:*:table/${var.database}/*\"]}, {\"Effect\": \"Allow\", \"Action\": [\"athena:StartQueryExecution\", \"athena:GetQueryExecution\", \"athena:GetQueryResults\", \"athena:StopQueryExecution\", \"athena:GetWorkGroup\"], \"Resource\": [\"arn:aws:athena:*:*:workgroup/${var.workgroup}\"]}]}"
+      },
+      "api": {
+        "role": "${aws_iam_role.api.id}",
+        "policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Action\": [\"logs:CreateLogStream\", \"logs:PutLogEvents\"], \"Resource\": [\"arn:aws:logs:*:*:log-group:/aws/lambda/${var.name}-*:*\"]}, {\"Effect\": \"Allow\", \"Action\": [\"xray:PutTraceSegments\", \"xray:PutTelemetryRecords\"], \"Resource\": [\"*\"]}, {\"Effect\": \"Allow\", \"Action\": [\"dynamodb:GetItem\"], \"Resource\": [\"${aws_dynamodb_table.txn.arn}\", \"${aws_dynamodb_table.serve.arn}\"]}]}"
+      }
+    },
+    "aws_lambda_function": {
+      "validator": {
+        "function_name": "${var.name}-validator",
+        "role": "${aws_iam_role.validator.arn}",
+        "package_type": "Image",
+        "image_uri": "${var.image_uri}",
+        "architectures": [
+          "x86_64"
+        ],
+        "image_config": {
+          "command": [
+            "src.validator.handler.handler"
+          ]
+        },
+        "memory_size": 256,
+        "timeout": 120,
+        "ephemeral_storage": {
+          "size": 1024
+        },
+        "tracing_config": {
+          "mode": "Active"
+        },
+        "environment": {
+          "variables": {
+            "PIPELINE": "${var.name}",
+            "BUCKET": "${var.bucket}",
+            "TXN_TABLE": "${aws_dynamodb_table.txn.name}",
+            "SERVE_TABLE": "${aws_dynamodb_table.serve.name}",
+            "DLQ_URL": "${var.dlq_url}",
+            "DATABASE": "${var.database}",
+            "WORKGROUP": "${var.workgroup}",
+            "GX_ANALYTICS_ENABLED": "false"
+          }
+        },
+        "depends_on": [
+          "aws_cloudwatch_log_group.validator",
+          "aws_iam_role_policy.validator"
+        ]
+      },
+      "batch": {
+        "function_name": "${var.name}-batch",
+        "role": "${aws_iam_role.batch.arn}",
+        "package_type": "Image",
+        "image_uri": "${var.image_uri}",
+        "architectures": [
+          "x86_64"
+        ],
+        "image_config": {
+          "command": [
+            "src.silver.handler.handler"
+          ]
+        },
+        "memory_size": 2048,
+        "timeout": 900,
+        "ephemeral_storage": {
+          "size": 1024
+        },
+        "tracing_config": {
+          "mode": "Active"
+        },
+        "environment": {
+          "variables": {
+            "PIPELINE": "${var.name}",
+            "BUCKET": "${var.bucket}",
+            "TXN_TABLE": "${aws_dynamodb_table.txn.name}",
+            "SERVE_TABLE": "${aws_dynamodb_table.serve.name}",
+            "DLQ_URL": "${var.dlq_url}",
+            "DATABASE": "${var.database}",
+            "WORKGROUP": "${var.workgroup}",
+            "GX_ANALYTICS_ENABLED": "false"
+          }
+        },
+        "depends_on": [
+          "aws_cloudwatch_log_group.batch",
+          "aws_iam_role_policy.batch"
+        ]
+      },
+      "api": {
+        "function_name": "${var.name}-api",
+        "role": "${aws_iam_role.api.arn}",
+        "package_type": "Image",
+        "image_uri": "${var.image_uri}",
+        "architectures": [
+          "x86_64"
+        ],
+        "image_config": {
+          "command": [
+            "src.api.handler.handler"
+          ]
+        },
+        "memory_size": 256,
+        "timeout": 120,
+        "ephemeral_storage": {
+          "size": 1024
+        },
+        "tracing_config": {
+          "mode": "Active"
+        },
+        "environment": {
+          "variables": {
+            "PIPELINE": "${var.name}",
+            "BUCKET": "${var.bucket}",
+            "TXN_TABLE": "${aws_dynamodb_table.txn.name}",
+            "SERVE_TABLE": "${aws_dynamodb_table.serve.name}",
+            "DLQ_URL": "${var.dlq_url}",
+            "DATABASE": "${var.database}",
+            "WORKGROUP": "${var.workgroup}",
+            "GX_ANALYTICS_ENABLED": "false"
+          }
+        },
+        "depends_on": [
+          "aws_cloudwatch_log_group.api",
+          "aws_iam_role_policy.api"
+        ]
+      }
+    },
+    "aws_cloudwatch_log_group": {
+      "validator": {
+        "name": "/aws/lambda/${var.name}-validator",
+        "retention_in_days": 7
+      },
+      "batch": {
+        "name": "/aws/lambda/${var.name}-batch",
+        "retention_in_days": 7
+      },
+      "api": {
+        "name": "/aws/lambda/${var.name}-api",
+        "retention_in_days": 7
+      }
+    },
+    "aws_lambda_event_source_mapping": {
+      "kinesis": {
+        "count": "${var.mode == \"kinesis\" ? 1 : 0}",
+        "event_source_arn": "${var.stream_arn}",
+        "function_name": "${aws_lambda_function.validator.arn}",
+        "starting_position": "TRIM_HORIZON",
+        "batch_size": 100,
+        "maximum_batching_window_in_seconds": 1,
+        "function_response_types": [
+          "ReportBatchItemFailures"
+        ],
+        "bisect_batch_on_function_error": true,
+        "maximum_retry_attempts": 5,
+        "destination_config": {
+          "on_failure": {
+            "destination_arn": "${var.failure_bucket_arn}"
+          }
+        }
+      },
+      "sqs": {
+        "count": "${var.mode == \"sqs\" ? 1 : 0}",
+        "event_source_arn": "${var.queue_arn}",
+        "function_name": "${aws_lambda_function.validator.arn}",
+        "batch_size": 10,
+        "function_response_types": [
+          "ReportBatchItemFailures"
+        ]
+      }
+    },
+    "aws_apigatewayv2_api": {
+      "api": {
+        "name": "${var.name}-api",
+        "protocol_type": "HTTP"
+      }
+    },
+    "aws_apigatewayv2_integration": {
+      "lambda": {
+        "api_id": "${aws_apigatewayv2_api.api.id}",
+        "integration_type": "AWS_PROXY",
+        "integration_uri": "${aws_lambda_function.api.invoke_arn}",
+        "payload_format_version": "2.0"
+      }
+    },
+    "aws_apigatewayv2_route": {
+      "routes": {
+        "for_each": "${toset([\"GET /txn/{id}\",\"GET /merchant/{id}/summary\"])}",
+        "api_id": "${aws_apigatewayv2_api.api.id}",
+        "route_key": "${each.value}",
+        "target": "integrations/${aws_apigatewayv2_integration.lambda.id}",
+        "authorization_type": "AWS_IAM"
+      }
+    },
+    "aws_apigatewayv2_stage": {
+      "default": {
+        "api_id": "${aws_apigatewayv2_api.api.id}",
+        "name": "$default",
+        "auto_deploy": true,
+        "default_route_settings": {
+          "throttling_burst_limit": 10,
+          "throttling_rate_limit": 5
+        }
+      }
+    },
+    "aws_lambda_permission": {
+      "api": {
+        "statement_id": "AllowAPI",
+        "action": "lambda:InvokeFunction",
+        "function_name": "${aws_lambda_function.api.function_name}",
+        "principal": "apigateway.amazonaws.com",
+        "source_arn": "${aws_apigatewayv2_api.api.execution_arn}/*/*"
+      }
+    }
+  },
+  "output": {
+    "validator_name": {
+      "value": "${aws_lambda_function.validator.function_name}"
+    },
+    "batch_name": {
+      "value": "${aws_lambda_function.batch.function_name}"
+    },
+    "api_name": {
+      "value": "${aws_lambda_function.api.function_name}"
+    },
+    "batch_arn": {
+      "value": "${aws_lambda_function.batch.arn}"
+    },
+    "api_url": {
+      "value": "${aws_apigatewayv2_api.api.api_endpoint}"
+    },
+    "txn_table": {
+      "value": "${aws_dynamodb_table.txn.name}"
+    }
+  },
+  "terraform": {
+    "required_version": ">= 1.10",
+    "required_providers": {
+      "aws": {
+        "source": "hashicorp/aws",
+        "version": "~> 5.90"
+      }
+    }
+  }
+}

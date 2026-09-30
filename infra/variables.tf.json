@@ -1,0 +1,35 @@
+{
+  "variable": {
+    "region": {
+      "type": "string",
+      "default": "ap-south-1"
+    },
+    "name": {
+      "type": "string",
+      "default": "upi-lakehouse"
+    },
+    "image_uri": {
+      "type": "string",
+      "description": "ECR image pinned to sha256 digest; run scripts/deploy.sh"
+    },
+    "alert_email": {
+      "type": "string"
+    },
+    "ingest_mode": {
+      "type": "string",
+      "default": "kinesis",
+      "validation": {
+        "condition": "${contains([\"kinesis\", \"sqs\"], var.ingest_mode)}",
+        "error_message": "Use kinesis or sqs."
+      }
+    },
+    "allow_destroy_data": {
+      "type": "bool",
+      "default": false
+    },
+    "enable_schedule": {
+      "type": "bool",
+      "default": false
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "source": "LOCAL synthetic demo; not AWS performance or cost",
+  "python": "3.12.14",
+  "input_events": 5000,
+  "accepted_unique": 4838,
+  "invalid_rejected": 124,
+  "duplicates_removed": 38,
+  "injected": {
+    "clean": 4838,
+    "bad_timestamp": 41,
+    "null_amount": 42,
+    "negative_amount": 41,
+    "duplicate": 38
+  },
+  "bad_record_catch_rate": 1.0,
+  "replay_duplicates": 0,
+  "local_ingest_p95_ms": 0.142,
+  "total_demo_seconds": 1.171,
+  "json_bytes": 1381784,
+  "partitioned_parquet_bytes": 413194,
+  "storage_reduction_pct": 70.1,
+  "aws_events_per_minute": null,
+  "aws_p95_latency_ms": null,
+  "athena_bytes_scanned": null,
+  "aws_cost_usd": null
+}

@@ -1,0 +1,57 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: python -m ruff check src tests scripts
+      - run: python -m pytest -q
+      - run: docker compose up -d --wait localstack
+      - run: RUN_LOCALSTACK=1 python -m pytest -q tests/test_localstack.py
+      - if: always()
+        run: docker compose down
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+      - run: terraform fmt -check -recursive infra
+      - run: terraform -chdir=infra init -backend=false
+      - run: terraform -chdir=infra validate
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.55.1
+      - run: tflint --chdir=infra --init
+      - run: tflint --chdir=infra --recursive
+  plan:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && vars.AWS_DEPLOY_ROLE != ''
+    needs: test
+    runs-on: ubuntu-latest
+    environment: aws-plan
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_VAR_image_uri: ${{ vars.IMAGE_URI }}
+      TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
+      TF_VAR_ingest_mode: ${{ vars.INGEST_MODE || 'kinesis' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE }}
+          aws-region: ap-south-1
+      - run: terraform -chdir=infra init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" -backend-config="key=upi/demo.tfstate" -backend-config="region=ap-south-1" -backend-config="use_lockfile=true"
+      - run: terraform -chdir=infra plan -input=false

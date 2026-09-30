@@ -1,0 +1,113 @@
+{
+  "variable": {
+    "name": {
+      "type": "string"
+    },
+    "batch_arn": {
+      "type": "string"
+    },
+    "topic_arn": {
+      "type": "string"
+    },
+    "enable_schedule": {
+      "type": "bool"
+    }
+  },
+  "resource": {
+    "aws_iam_role": {
+      "states": {
+        "name": "${var.name}-states",
+        "assume_role_policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Principal\": {\"Service\": \"states.amazonaws.com\"}, \"Action\": \"sts:AssumeRole\"}]}"
+      },
+      "events": {
+        "name": "${var.name}-events",
+        "assume_role_policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Principal\": {\"Service\": \"events.amazonaws.com\"}, \"Action\": \"sts:AssumeRole\"}]}"
+      }
+    },
+    "aws_iam_role_policy": {
+      "states": {
+        "role": "${aws_iam_role.states.id}",
+        "policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Action\": [\"lambda:InvokeFunction\"], \"Resource\": [\"${var.batch_arn}\"]}, {\"Effect\": \"Allow\", \"Action\": [\"sns:Publish\"], \"Resource\": [\"${var.topic_arn}\"]}]}"
+      },
+      "events": {
+        "role": "${aws_iam_role.events.id}",
+        "policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Action\": [\"states:StartExecution\"], \"Resource\": [\"${aws_sfn_state_machine.pipeline.arn}\"]}]}"
+      }
+    },
+    "aws_sfn_state_machine": {
+      "pipeline": {
+        "name": "${var.name}",
+        "role_arn": "${aws_iam_role.states.arn}",
+        "definition": "{\"Comment\": \"Stage -> GX gate -> publish -> Athena gold -> serve\", \"StartAt\": \"Begin\", \"TimeoutSeconds\": 3600, \"States\": {\"Begin\": {\"Type\": \"Pass\", \"Parameters\": {\"run_id.$\": \"States.UUID()\"}, \"Next\": \"Stage\"}, \"Stage\": {\"Type\": \"Task\", \"Resource\": \"${var.batch_arn}\", \"Parameters\": {\"op\": \"stage\", \"run_id.$\": \"$.run_id\"}, \"ResultPath\": \"$.result\", \"TimeoutSeconds\": 900, \"Retry\": [{\"ErrorEquals\": [\"Lambda.ServiceException\", \"Lambda.AWSLambdaException\", \"Lambda.SdkClientException\", \"Lambda.TooManyRequestsException\"], \"IntervalSeconds\": 2, \"MaxAttempts\": 2, \"BackoffRate\": 2}], \"Catch\": [{\"ErrorEquals\": [\"States.ALL\"], \"ResultPath\": \"$.error\", \"Next\": \"ReleaseFailed\"}], \"Next\": \"QualityGate\"}, \"QualityGate\": {\"Type\": \"Task\", \"Resource\": \"${var.batch_arn}\", \"Parameters\": {\"op\": \"gate\", \"run_id.$\": \"$.run_id\"}, \"ResultPath\": \"$.result\", \"TimeoutSeconds\": 900, \"Retry\": [{\"ErrorEquals\": [\"Lambda.ServiceException\", \"Lambda.AWSLambdaException\", \"Lambda.SdkClientException\", \"Lambda.TooManyRequestsException\"], \"IntervalSeconds\": 2, \"MaxAttempts\": 2, \"BackoffRate\": 2}], \"Catch\": [{\"ErrorEquals\": [\"States.ALL\"], \"ResultPath\": \"$.error\", \"Next\": \"ReleaseFailed\"}], \"Next\": \"PublishSilver\"}, \"PublishSilver\": {\"Type\": \"Task\", \"Resource\": \"${var.batch_arn}\", \"Parameters\": {\"op\": \"publish\", \"run_id.$\": \"$.run_id\"}, \"ResultPath\": \"$.result\", \"TimeoutSeconds\": 900, \"Retry\": [{\"ErrorEquals\": [\"Lambda.ServiceException\", \"Lambda.AWSLambdaException\", \"Lambda.SdkClientException\", \"Lambda.TooManyRequestsException\"], \"IntervalSeconds\": 2, \"MaxAttempts\": 2, \"BackoffRate\": 2}], \"Catch\": [{\"ErrorEquals\": [\"States.ALL\"], \"ResultPath\": \"$.error\", \"Next\": \"ReleaseFailed\"}], \"Next\": \"Gold\"}, \"Gold\": {\"Type\": \"Task\", \"Resource\": \"${var.batch_arn}\", \"Parameters\": {\"op\": \"gold\", \"run_id.$\": \"$.run_id\"}, \"ResultPath\": \"$.result\", \"TimeoutSeconds\": 900, \"Retry\": [{\"ErrorEquals\": [\"Lambda.ServiceException\", \"Lambda.AWSLambdaException\", \"Lambda.SdkClientException\", \"Lambda.TooManyRequestsException\"], \"IntervalSeconds\": 2, \"MaxAttempts\": 2, \"BackoffRate\": 2}], \"Catch\": [{\"ErrorEquals\": [\"States.ALL\"], \"ResultPath\": \"$.error\", \"Next\": \"ReleaseFailed\"}], \"Next\": \"Release\"}, \"Release\": {\"Type\": \"Task\", \"Resource\": \"${var.batch_arn}\", \"Parameters\": {\"op\": \"release\", \"run_id.$\": \"$.run_id\"}, \"ResultPath\": null, \"Catch\": [{\"ErrorEquals\": [\"States.ALL\"], \"ResultPath\": \"$.release_error\", \"Next\": \"Alert\"}], \"Next\": \"Done\"}, \"ReleaseFailed\": {\"Type\": \"Task\", \"Resource\": \"${var.batch_arn}\", \"Parameters\": {\"op\": \"release\", \"run_id.$\": \"$.run_id\"}, \"ResultPath\": null, \"Catch\": [{\"ErrorEquals\": [\"States.ALL\"], \"ResultPath\": \"$.release_error\", \"Next\": \"Alert\"}], \"Next\": \"Alert\"}, \"Done\": {\"Type\": \"Succeed\"}, \"Alert\": {\"Type\": \"Task\", \"Resource\": \"arn:aws:states:::sns:publish\", \"Parameters\": {\"TopicArn\": \"${var.topic_arn}\", \"Message.$\": \"States.JsonToString($)\"}, \"Next\": \"Failed\"}, \"Failed\": {\"Type\": \"Fail\", \"Error\": \"PipelineFailed\", \"Cause\": \"Check execution history and quality report\"}}}",
+        "depends_on": [
+          "aws_iam_role_policy.states"
+        ]
+      }
+    },
+    "aws_cloudwatch_event_rule": {
+      "schedule": {
+        "name": "${var.name}-batch",
+        "schedule_expression": "rate(1 hour)",
+        "state": "${var.enable_schedule ? \"ENABLED\" : \"DISABLED\"}"
+      }
+    },
+    "aws_cloudwatch_event_target": {
+      "batch": {
+        "rule": "${aws_cloudwatch_event_rule.schedule.name}",
+        "arn": "${aws_sfn_state_machine.pipeline.arn}",
+        "role_arn": "${aws_iam_role.events.arn}",
+        "input": "{}"
+      }
+    },
+    "aws_cloudwatch_metric_alarm": {
+      "failed": {
+        "alarm_name": "${var.name}-execution-failed",
+        "namespace": "AWS/States",
+        "metric_name": "ExecutionsFailed",
+        "dimensions": {
+          "StateMachineArn": "${aws_sfn_state_machine.pipeline.arn}"
+        },
+        "statistic": "Sum",
+        "period": 60,
+        "evaluation_periods": 1,
+        "threshold": 0,
+        "comparison_operator": "GreaterThanThreshold",
+        "treat_missing_data": "notBreaching",
+        "alarm_actions": [
+          "${var.topic_arn}"
+        ]
+      },
+      "timedout": {
+        "alarm_name": "${var.name}-execution-timeout",
+        "namespace": "AWS/States",
+        "metric_name": "ExecutionsTimedOut",
+        "dimensions": {
+          "StateMachineArn": "${aws_sfn_state_machine.pipeline.arn}"
+        },
+        "statistic": "Sum",
+        "period": 60,
+        "evaluation_periods": 1,
+        "threshold": 0,
+        "comparison_operator": "GreaterThanThreshold",
+        "treat_missing_data": "notBreaching",
+        "alarm_actions": [
+          "${var.topic_arn}"
+        ]
+      }
+    }
+  },
+  "output": {
+    "state_machine_arn": {
+      "value": "${aws_sfn_state_machine.pipeline.arn}"
+    }
+  },
+  "terraform": {
+    "required_version": ">= 1.10",
+    "required_providers": {
+      "aws": {
+        "source": "hashicorp/aws",
+        "version": "~> 5.90"
+      }
+    }
+  }
+}

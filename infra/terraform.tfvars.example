@@ -1,0 +1,6 @@
+region = "ap-south-1"
+name = "upi-lakehouse"
+alert_email = "you@example.com"
+ingest_mode = "kinesis" # or sqs if your account plan restricts Kinesis
+enable_schedule = false
+# image_uri supplied by scripts/deploy.sh

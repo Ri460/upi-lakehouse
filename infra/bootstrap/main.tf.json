@@ -1,0 +1,124 @@
+{
+  "terraform": {
+    "required_version": ">= 1.10",
+    "required_providers": {
+      "aws": {
+        "source": "hashicorp/aws",
+        "version": "~> 5.90"
+      }
+    }
+  },
+  "provider": {
+    "aws": {
+      "region": "${var.region}"
+    }
+  },
+  "variable": {
+    "region": {
+      "type": "string",
+      "default": "ap-south-1"
+    },
+    "name": {
+      "type": "string",
+      "default": "upi-lakehouse"
+    },
+    "github_repository": {
+      "type": "string",
+      "description": "Exact OWNER/REPO"
+    },
+    "existing_oidc_provider_arn": {
+      "type": "string",
+      "default": "",
+      "description": "Set if GitHub OIDC provider already exists"
+    }
+  },
+  "data": {
+    "aws_caller_identity": {
+      "current": {}
+    }
+  },
+  "resource": {
+    "aws_s3_bucket": {
+      "state": {
+        "bucket": "${var.name}-state-${data.aws_caller_identity.current.account_id}",
+        "lifecycle": {
+          "prevent_destroy": true
+        }
+      }
+    },
+    "aws_s3_bucket_versioning": {
+      "state": {
+        "bucket": "${aws_s3_bucket.state.id}",
+        "versioning_configuration": {
+          "status": "Enabled"
+        }
+      }
+    },
+    "aws_s3_bucket_server_side_encryption_configuration": {
+      "state": {
+        "bucket": "${aws_s3_bucket.state.id}",
+        "rule": {
+          "apply_server_side_encryption_by_default": {
+            "sse_algorithm": "AES256"
+          }
+        }
+      }
+    },
+    "aws_s3_bucket_public_access_block": {
+      "state": {
+        "bucket": "${aws_s3_bucket.state.id}",
+        "block_public_acls": true,
+        "block_public_policy": true,
+        "ignore_public_acls": true,
+        "restrict_public_buckets": true
+      }
+    },
+    "aws_ecr_repository": {
+      "lambda": {
+        "name": "${var.name}-lambda",
+        "force_delete": true,
+        "image_scanning_configuration": {
+          "scan_on_push": true
+        }
+      }
+    },
+    "aws_ecr_lifecycle_policy": {
+      "keep": {
+        "repository": "${aws_ecr_repository.lambda.name}",
+        "policy": "{\"rules\": [{\"rulePriority\": 1, \"description\": \"Keep last 3 images\", \"selection\": {\"tagStatus\": \"any\", \"countType\": \"imageCountMoreThan\", \"countNumber\": 3}, \"action\": {\"type\": \"expire\"}}]}"
+      }
+    },
+    "aws_iam_openid_connect_provider": {
+      "github": {
+        "count": "${var.existing_oidc_provider_arn == \"\" ? 1 : 0}",
+        "url": "https://token.actions.githubusercontent.com",
+        "client_id_list": [
+          "sts.amazonaws.com"
+        ]
+      }
+    },
+    "aws_iam_role": {
+      "deploy": {
+        "name": "${var.name}-github-deploy",
+        "assume_role_policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Principal\": {\"Federated\": \"${var.existing_oidc_provider_arn != \\\"\\\" ? var.existing_oidc_provider_arn : aws_iam_openid_connect_provider.github[0].arn}\"}, \"Action\": \"sts:AssumeRoleWithWebIdentity\", \"Condition\": {\"StringEquals\": {\"token.actions.githubusercontent.com:aud\": \"sts.amazonaws.com\", \"token.actions.githubusercontent.com:sub\": [\"repo:${var.github_repository}:environment:aws-demo\", \"repo:${var.github_repository}:environment:aws-plan\"]}}}]}"
+      }
+    },
+    "aws_iam_role_policy": {
+      "deploy": {
+        "role": "${aws_iam_role.deploy.id}",
+        "policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Action\": [\"lambda:*\", \"apigateway:*\", \"kinesis:*\", \"sqs:*\", \"sns:*\", \"states:*\", \"events:*\", \"logs:*\", \"cloudwatch:*\", \"dynamodb:*\", \"glue:*\", \"athena:*\", \"budgets:*\"], \"Resource\": [\"*\"]}, {\"Effect\": \"Allow\", \"Action\": [\"s3:*\"], \"Resource\": [\"arn:aws:s3:::${var.name}-*\", \"arn:aws:s3:::${var.name}-*/*\"]}, {\"Effect\": \"Allow\", \"Action\": [\"ecr:GetAuthorizationToken\"], \"Resource\": [\"*\"]}, {\"Effect\": \"Allow\", \"Action\": [\"ecr:*\"], \"Resource\": [\"${aws_ecr_repository.lambda.arn}\"]}, {\"Effect\": \"Allow\", \"Action\": [\"iam:CreateRole\", \"iam:GetRole\", \"iam:DeleteRole\", \"iam:UpdateAssumeRolePolicy\", \"iam:PutRolePolicy\", \"iam:GetRolePolicy\", \"iam:DeleteRolePolicy\", \"iam:ListRolePolicies\", \"iam:ListAttachedRolePolicies\", \"iam:TagRole\", \"iam:UntagRole\", \"iam:ListInstanceProfilesForRole\", \"iam:UpdateRole\"], \"Resource\": [\"arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.name}-*\"]}, {\"Effect\": \"Allow\", \"Action\": [\"iam:PassRole\"], \"Resource\": [\"arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/${var.name}-*\"], \"Condition\": {\"StringEquals\": {\"iam:PassedToService\": [\"lambda.amazonaws.com\", \"states.amazonaws.com\", \"events.amazonaws.com\"]}}}, {\"Effect\": \"Allow\", \"Action\": [\"kms:DescribeKey\"], \"Resource\": [\"*\"]}]}"
+      }
+    }
+  },
+  "output": {
+    "repository_url": {
+      "value": "${aws_ecr_repository.lambda.repository_url}"
+    },
+    "state_bucket": {
+      "value": "${aws_s3_bucket.state.id}"
+    },
+    "deploy_role_arn": {
+      "value": "${aws_iam_role.deploy.arn}"
+    }
+  }
+}

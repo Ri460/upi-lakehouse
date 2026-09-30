@@ -1,0 +1,71 @@
+{
+  "variable": {
+    "name": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string"
+    }
+  },
+  "resource": {
+    "aws_sqs_queue": {
+      "dlq": {
+        "name": "${var.name}-invalid",
+        "message_retention_seconds": 1209600,
+        "sqs_managed_sse_enabled": true
+      },
+      "input": {
+        "count": "${var.mode == \"sqs\" ? 1 : 0}",
+        "name": "${var.name}-input",
+        "visibility_timeout_seconds": 720,
+        "sqs_managed_sse_enabled": true,
+        "redrive_policy": "${jsonencode({deadLetterTargetArn=aws_sqs_queue.dlq.arn,maxReceiveCount=5})}"
+      }
+    },
+    "aws_kinesis_stream": {
+      "input": {
+        "count": "${var.mode == \"kinesis\" ? 1 : 0}",
+        "name": "${var.name}-input",
+        "shard_count": 1,
+        "retention_period": 24,
+        "encryption_type": "KMS",
+        "kms_key_id": "alias/aws/kinesis",
+        "stream_mode_details": {
+          "stream_mode": "PROVISIONED"
+        }
+      }
+    }
+  },
+  "output": {
+    "stream_arn": {
+      "value": "${try(aws_kinesis_stream.input[0].arn, \"\")}"
+    },
+    "stream_name": {
+      "value": "${try(aws_kinesis_stream.input[0].name, \"\")}"
+    },
+    "queue_arn": {
+      "value": "${try(aws_sqs_queue.input[0].arn, \"\")}"
+    },
+    "queue_url": {
+      "value": "${try(aws_sqs_queue.input[0].url, \"\")}"
+    },
+    "dlq_arn": {
+      "value": "${aws_sqs_queue.dlq.arn}"
+    },
+    "dlq_url": {
+      "value": "${aws_sqs_queue.dlq.url}"
+    },
+    "dlq_name": {
+      "value": "${aws_sqs_queue.dlq.name}"
+    }
+  },
+  "terraform": {
+    "required_version": ">= 1.10",
+    "required_providers": {
+      "aws": {
+        "source": "hashicorp/aws",
+        "version": "~> 5.90"
+      }
+    }
+  }
+}

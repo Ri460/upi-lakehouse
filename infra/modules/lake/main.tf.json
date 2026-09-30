@@ -1,0 +1,123 @@
+{
+  "variable": {
+    "name": {
+      "type": "string"
+    },
+    "allow_destroy_data": {
+      "type": "bool"
+    }
+  },
+  "data": {
+    "aws_caller_identity": {
+      "current": {}
+    }
+  },
+  "resource": {
+    "aws_s3_bucket": {
+      "lake": {
+        "bucket": "${var.name}-${data.aws_caller_identity.current.account_id}",
+        "force_destroy": "${var.allow_destroy_data}"
+      }
+    },
+    "aws_s3_bucket_public_access_block": {
+      "lake": {
+        "bucket": "${aws_s3_bucket.lake.id}",
+        "block_public_acls": true,
+        "block_public_policy": true,
+        "ignore_public_acls": true,
+        "restrict_public_buckets": true
+      }
+    },
+    "aws_s3_bucket_server_side_encryption_configuration": {
+      "lake": {
+        "bucket": "${aws_s3_bucket.lake.id}",
+        "rule": {
+          "apply_server_side_encryption_by_default": {
+            "sse_algorithm": "AES256"
+          }
+        }
+      }
+    },
+    "aws_s3_bucket_policy": {
+      "tls": {
+        "bucket": "${aws_s3_bucket.lake.id}",
+        "policy": "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Deny\", \"Principal\": \"*\", \"Action\": \"s3:*\", \"Resource\": [\"${aws_s3_bucket.lake.arn}\", \"${aws_s3_bucket.lake.arn}/*\"], \"Condition\": {\"Bool\": {\"aws:SecureTransport\": \"false\"}}}]}"
+      }
+    },
+    "aws_s3_bucket_lifecycle_configuration": {
+      "cleanup": {
+        "bucket": "${aws_s3_bucket.lake.id}",
+        "rule": [
+          {
+            "id": "temp",
+            "status": "Enabled",
+            "filter": {
+              "prefix": "staging/"
+            },
+            "expiration": {
+              "days": 2
+            }
+          },
+          {
+            "id": "query-results",
+            "status": "Enabled",
+            "filter": {
+              "prefix": "athena-results/"
+            },
+            "expiration": {
+              "days": 7
+            }
+          }
+        ]
+      }
+    },
+    "aws_glue_catalog_database": {
+      "lake": {
+        "name": "${replace(var.name, \"-\", \"_\") }"
+      }
+    },
+    "aws_athena_workgroup": {
+      "demo": {
+        "name": "${var.name}",
+        "force_destroy": true,
+        "configuration": {
+          "enforce_workgroup_configuration": true,
+          "bytes_scanned_cutoff_per_query": 100000000,
+          "publish_cloudwatch_metrics_enabled": true,
+          "engine_version": {
+            "selected_engine_version": "Athena engine version 3"
+          },
+          "result_configuration": {
+            "output_location": "s3://${aws_s3_bucket.lake.id}/athena-results/",
+            "encryption_configuration": {
+              "encryption_option": "SSE_S3"
+            }
+          }
+        }
+      }
+    }
+  },
+  "output": {
+    "bucket": {
+      "value": "${aws_s3_bucket.lake.id}"
+    },
+    "bucket_arn": {
+      "value": "${aws_s3_bucket.lake.arn}"
+    },
+    "database": {
+      "value": "${aws_glue_catalog_database.lake.name}"
+    },
+    "workgroup": {
+      "value": "${aws_athena_workgroup.demo.name}"
+    }
+  },
+  "terraform": {
+    "required_version": ">= 1.10",
+    "required_providers": {
+      "aws": {
+        "source": "hashicorp/aws",
+        "version": "~> 5.90"
+      }
+    }
+  }
+}

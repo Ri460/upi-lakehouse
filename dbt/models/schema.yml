@@ -1,0 +1,19 @@
+version: 2
+sources:
+  - name: lake
+    database: awsdatacatalog
+    schema: "{{ env_var('LAKE_DATABASE') }}"
+    tables:
+      - name: silver
+        columns:
+          - name: txn_id
+            tests: [unique, not_null]
+          - name: amount_paise
+            tests: [not_null]
+models:
+  - name: dbt_daily_merchant_revenue
+    columns:
+      - name: merchant_id
+        tests: [not_null]
+  - name: dbt_hourly_fraud_rate
+  - name: dbt_payment_method_mix

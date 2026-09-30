@@ -1,0 +1,16 @@
+services:
+  localstack:
+    image: localstack/localstack:4.2.0
+    ports: ["4566:4566"]
+    environment:
+      SERVICES: s3,sqs,dynamodb,kinesis
+      AWS_DEFAULT_REGION: ap-south-1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      retries: 20
+  demo:
+    build:
+      context: .
+      dockerfile: Dockerfile.demo
+    volumes: ["./data:/app/data"]

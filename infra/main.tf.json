@@ -1,0 +1,71 @@
+{
+  "module": {
+    "lake": {
+      "source": "./modules/lake",
+      "name": "${var.name}",
+      "allow_destroy_data": "${var.allow_destroy_data}"
+    },
+    "ingest": {
+      "source": "./modules/ingest",
+      "name": "${var.name}",
+      "mode": "${var.ingest_mode}"
+    },
+    "serve": {
+      "source": "./modules/serve",
+      "name": "${var.name}",
+      "image_uri": "${var.image_uri}",
+      "bucket": "${module.lake.bucket}",
+      "bucket_arn": "${module.lake.bucket_arn}",
+      "database": "${module.lake.database}",
+      "workgroup": "${module.lake.workgroup}",
+      "stream_arn": "${module.ingest.stream_arn}",
+      "queue_arn": "${module.ingest.queue_arn}",
+      "dlq_arn": "${module.ingest.dlq_arn}",
+      "dlq_url": "${module.ingest.dlq_url}",
+      "failure_bucket_arn": "${module.lake.bucket_arn}",
+      "mode": "${var.ingest_mode}"
+    },
+    "monitoring": {
+      "source": "./modules/monitoring",
+      "name": "${var.name}",
+      "email": "${var.alert_email}",
+      "dlq_name": "${module.ingest.dlq_name}",
+      "validator_name": "${module.serve.validator_name}",
+      "batch_name": "${module.serve.batch_name}",
+      "api_name": "${module.serve.api_name}"
+    },
+    "orchestration": {
+      "source": "./modules/orchestration",
+      "name": "${var.name}",
+      "batch_arn": "${module.serve.batch_arn}",
+      "topic_arn": "${module.monitoring.topic_arn}",
+      "enable_schedule": "${var.enable_schedule}"
+    }
+  },
+  "output": {
+    "bucket": {
+      "value": "${module.lake.bucket}"
+    },
+    "stream": {
+      "value": "${module.ingest.stream_name}"
+    },
+    "queue_url": {
+      "value": "${module.ingest.queue_url}"
+    },
+    "api_url": {
+      "value": "${module.serve.api_url}"
+    },
+    "state_machine_arn": {
+      "value": "${module.orchestration.state_machine_arn}"
+    },
+    "database": {
+      "value": "${module.lake.database}"
+    },
+    "workgroup": {
+      "value": "${module.lake.workgroup}"
+    },
+    "txn_table": {
+      "value": "${module.serve.txn_table}"
+    }
+  }
+}
