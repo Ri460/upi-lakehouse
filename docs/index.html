@@ -20,7 +20,7 @@
 <div class="health" id="quality"></div><div class="footer"><span id="updated"></span><span><a href="ARCHITECTURE.md">Architecture</a> · <a href="BENCHMARKS.md">Benchmark methodology</a> · Synthetic data only</span></div>
 </main><script>
 const fmt=n=>new Intl.NumberFormat('en-IN').format(n);const money=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n/100);
-fetch('dashboard.json').then(r=>{if(!r.ok)throw new Error('Snapshot unavailable');return r.json()}).then(d=>{
+fetch('dashboard.json?v=f067676').then(r=>{if(!r.ok)throw new Error('Snapshot unavailable');return r.json()}).then(d=>{
  document.getElementById('source').textContent=d.source;document.getElementById('updated').textContent='Snapshot: '+new Date(d.generated_at).toLocaleString();
  const map={};d.daily_merchant_revenue.forEach(r=>{map[r.merchant_id]??={merchant_id:r.merchant_id,transactions:0,revenue_paise:0,flagged_transactions:0};for(const k of ['transactions','revenue_paise','flagged_transactions'])map[r.merchant_id][k]+=r[k]});
  const merchants=Object.values(map);const total=merchants.reduce((a,r)=>a+r.transactions,0),revenue=merchants.reduce((a,r)=>a+r.revenue_paise,0),flagged=merchants.reduce((a,r)=>a+r.flagged_transactions,0);
