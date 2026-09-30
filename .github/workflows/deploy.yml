@@ -21,7 +21,7 @@ jobs:
       ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
       TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
       TF_VAR_alert_email: ${{ vars.ALERT_EMAIL }}
-      TF_VAR_ingest_mode: ${{ vars.INGEST_MODE || 'kinesis' }}
+      TF_VAR_ingest_mode: ${{ vars.INGEST_MODE || 'sqs' }}
       TF_VAR_image_uri: ${{ vars.IMAGE_URI }}
     steps:
       - uses: actions/checkout@v4
