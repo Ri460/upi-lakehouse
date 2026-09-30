@@ -148,7 +148,7 @@
     "aws_iam_role_policy": {
       "validator": {
         "role": "${aws_iam_role.validator.id}",
-        "policy": "${jsonencode({Version=\"2012-10-17\",Statement=concat(local.validator_base,var.mode == \"kinesis\" ? [{Effect=\"Allow\",Action=[\"kinesis:DescribeStream\",\"kinesis:DescribeStreamSummary\",\"kinesis:GetRecords\",\"kinesis:GetShardIterator\",\"kinesis:ListShards\"],Resource=[var.stream_arn]},{Effect=\"Allow\",Action=[\"kms:Decrypt\"],Resource=[\"*\"]}] : [{Effect=\"Allow\",Action=[\"sqs:ReceiveMessage\",\"sqs:DeleteMessage\",\"sqs:GetQueueAttributes\"],Resource=[var.queue_arn]}))})}"
+        "policy": "${jsonencode({Version=\"2012-10-17\",Statement=concat(local.validator_base,var.mode == \"kinesis\" ? [{Effect=\"Allow\",Action=[\"kinesis:DescribeStream\",\"kinesis:DescribeStreamSummary\",\"kinesis:GetRecords\",\"kinesis:GetShardIterator\",\"kinesis:ListShards\"],Resource=[var.stream_arn]},{Effect=\"Allow\",Action=[\"kms:Decrypt\"],Resource=[\"*\"]}] : [{Effect=\"Allow\",Action=[\"sqs:ReceiveMessage\",\"sqs:DeleteMessage\",\"sqs:GetQueueAttributes\"],Resource=[var.queue_arn]}]))})}"
       },
       "batch": {
         "role": "${aws_iam_role.batch.id}",
