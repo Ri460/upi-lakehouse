@@ -7,7 +7,7 @@ set -euo pipefail
 tag=$(git rev-parse --short HEAD 2>/dev/null || date +%s)
 registry=${ECR_REPOSITORY%%/*}
 aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$registry"
-docker build --platform linux/amd64 -t "$ECR_REPOSITORY:$tag" .
+docker buildx build --provenance=false --platform linux/amd64 --load -t "$ECR_REPOSITORY:$tag" .
 docker push "$ECR_REPOSITORY:$tag"
 repo=${ECR_REPOSITORY#*/}
 digest=$(aws ecr describe-images --region "$AWS_REGION" --repository-name "$repo" --image-ids imageTag="$tag" --query 'imageDetails[0].imageDigest' --output text)
