@@ -79,7 +79,9 @@ The caller needs `execute-api:Invoke` on this API ARN. The OIDC deploy role is n
 bash scripts/export_dashboard.sh
 ```
 
-Create your GitHub repository, commit this project, and push to `main`. In repository Settings → Pages choose GitHub Actions. The supplied Pages workflow publishes `docs/`, including snapshot JSON, and returns the live URL. This needs your GitHub account; no public repository has been created for you. Only synthetic aggregates should be published. The dashboard explicitly labels local versus AWS snapshots. It is not a live AWS query client.
+The public repository already has GitHub Pages configured to publish `docs/` with the supplied Actions workflow. After exporting a new snapshot, commit and push `docs/dashboard.json` (and any related dashboard edits) to `main`; the workflow redeploys the page. Current site: https://ri460.github.io/upi-lakehouse/.
+
+Only synthetic aggregates should be published. The page labels the source and snapshot time. It is a static snapshot, not a live AWS query client; refreshing it requires a new export and push.
 
 ## 7. Tear down every session
 
