@@ -9,13 +9,13 @@ Verified in the authoring environment:
 - Shared gold SQL executed against DuckDB in the local demo.
 - Terraform formatting passes; JSON configuration files parse.
 - Dashboard script syntax and workflow YAML parse checks pass.
+- Latest GitHub Actions CI run passed Ruff, pytest, the LocalStack integration, Terraform validation, and TFLint.
+- GitHub Pages publication completed successfully and the public page was visually verified at https://ri460.github.io/upi-lakehouse/. It serves an AWS synthetic-data export from 2026-09-30 20:39 UTC: 376 accepted unique transactions, ₹853,722 revenue, 1.9% flagged, 12 merchants.
 
 Not verified here:
 
-- Docker image build / LocalStack integration: no Docker daemon available.
-- Full Terraform provider validation / tflint / AWS plan: provider startup requires a Unix socket that this environment blocks. Terraform/provider downloads and initialization succeeded, but schema validation could not execute. This is not an AWS deployment success.
-- AWS IAM/service behavior, end-to-end cloud execution, p95, Athena benchmark, actual cost, dbt alternative.
-- Browser visual rendering and public GitHub Pages publication.
+- Lambda image build/push to ECR and a clean end-to-end AWS deployment from this repository.
+- AWS IAM/service behavior, current runtime/API availability, cloud p95, Athena benchmark, actual cost, and dbt alternative. Account SCP restrictions previously denied GitHub OIDC provider creation and Kinesis stream tagging.
 - Live demo recording: a three-minute recording guide is included.
 
 Run CI and a small AWS smoke session before claiming deployability or publishing cloud performance. Treat any provider/IAM errors found there as deployment fixes, not measured successes. The stack has intentionally conservative row/byte bounds and is designed as an educational project.
