@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-: "${AWS_REGION:=ap-south-1}"
+: "${AWS_REGION:=ap-southeast-2}"
 : "${ECR_REPOSITORY:?Set ECR_REPOSITORY to bootstrap repository_url}"
 : "${TF_STATE_BUCKET:?Set TF_STATE_BUCKET to bootstrap state_bucket}"
 : "${TF_VAR_alert_email:?Set TF_VAR_alert_email}"

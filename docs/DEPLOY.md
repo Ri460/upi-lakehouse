@@ -2,15 +2,15 @@
 
 ## 1. Prepare the account
 
-Use a dedicated learning account. Enable root MFA; never create root access keys. Prefer IAM Identity Center and `aws configure sso` / `aws sso login`. Check your AWS Free plan service access and credit expiry in Billing before enabling services. Accounts, eligibility, region prices and credit offers vary. The budget is not a spending cap and alerts can lag usage. Confirm `ap-south-1` supports your selected services and plan. Use `ingest_mode="sqs"` if Kinesis is unavailable.
+Use a dedicated learning account. Enable root MFA; never create root access keys. Prefer IAM Identity Center and `aws configure sso` / `aws sso login`. Check your AWS Free plan service access and credit expiry in Billing before enabling services. Accounts, eligibility, region prices and credit offers vary. The budget is not a spending cap and alerts can lag usage. Confirm `ap-southeast-2` supports your selected services and plan. Use `ingest_mode="sqs"` if Kinesis is unavailable.
 
 Install Python 3.12, AWS CLI v2, Docker and Terraform >=1.10. Sign in with a bootstrap administrator. No credentials belong in this repo. On Windows, run shell scripts in WSL or Git Bash. Use the same project name in bootstrap and the main stack.
 
 ## 2. One-time bootstrap
 
 ```bash
-export AWS_REGION=ap-south-1
-export AWS_DEFAULT_REGION=ap-south-1
+export AWS_REGION=ap-southeast-2
+export AWS_DEFAULT_REGION=ap-southeast-2
 terraform -chdir=infra/bootstrap init
 terraform -chdir=infra/bootstrap apply -var='github_repository=YOUR_NAME/YOUR_REPO'
 ```

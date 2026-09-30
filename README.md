@@ -59,7 +59,7 @@ See [verification status](docs/VERIFICATION.md) for what was and was not tested.
 
 ## Deploy and tear down
 
-Follow [docs/DEPLOY.md](docs/DEPLOY.md). Use one sandbox account and `ap-south-1`. Create no root access keys. Bootstrap once, build the container, then provision the session with `bash scripts/deploy.sh`. Inspect the Terraform plan before accepting infrastructure changes.
+Follow [docs/DEPLOY.md](docs/DEPLOY.md). Use one sandbox account and `ap-southeast-2`. Create no root access keys. Bootstrap once, build the container, then provision the session with `bash scripts/deploy.sh`. Inspect the Terraform plan before accepting infrastructure changes.
 
 **Budget alerts are notifications, not a hard spending cap.** The provided $10 monthly budget alerts at $5 and $8. A Free plan or credits do not guarantee every service is available or free. Check account eligibility and current prices before applying. Do not leave Kinesis running overnight. No NAT gateway, VPC, Redshift, MWAA, OpenSearch or QuickSight is provisioned.
 
